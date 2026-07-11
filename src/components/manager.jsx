@@ -14,13 +14,13 @@ const manager = () => {
     const [passwordArray, setPasswordArray] = useState([])
 
     const getPasswords = async () => {
-        let req = await fetch("http://localhost:3000/")
+        let req = await fetch("/api/passwords")
         let passwords = await req.json()
         setPasswordArray(passwords)
         console.log(passwords)
     }
     useEffect(() => {
-        getPasswords() 
+        getPasswords()
     }, [])
     const copyText = (text) => {
 
@@ -49,16 +49,16 @@ const manager = () => {
             PasswordRef.current.type = "text"
         }
     }
-    const savePassword = async  () => {
+    const savePassword = async () => {
         // if any such id exist in the database delete it 
 
         if (form.site.length > 3 && form.username.length > 3 && form.password.length > 3) {
-          if (form.id) {
-            await fetch ("http://localhost:3000/", {method: "DELETE", headers: {"Content-Type": "application/json" }, body: JSON.stringify({ id: form.id }) })
-                    }
-                const id = uuidv4()
-        setPasswordArray([...passwordArray, { ...form, id }])
-            await fetch("http://localhost:3000/", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, id}) })
+            if (form.id) {
+                await fetch("/api/passwords", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: form.id }) })
+            }
+            const id = uuidv4()
+            setPasswordArray([...passwordArray, { ...form, id }])
+            await fetch("/api/passwords", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, id }) })
 
             // Otherwise clear the form and show toast
             setform({ site: "", username: "", password: "" })
@@ -84,25 +84,26 @@ const manager = () => {
         let c = confirm("Do you want to delete this password")
         if (c) {
             let c = confirm("Do you really want to delete this password?")
-        if (c) {
-            setPasswordArray(passwordArray.filter(item => item.id !== id))
-            
-            await fetch("http://localhost:3000/", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })
+            if (c) {
+                setPasswordArray(passwordArray.filter(item => item.id !== id))
 
-            toast('Passwod Deleted', {
-                position: "top-right",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "dark",
-            });
+                await fetch("/api/passwords",
+                    { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })
+
+                toast('Passwod Deleted', {
+                    position: "top-right",
+                    autoClose: 5000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    theme: "dark",
+                });
+            }
         }
     }
-}
-   const editPassword = (id) => {
+    const editPassword = (id) => {
         setform({ ...passwordArray.filter(i => i.id === id)[0], id: id })
         setPasswordArray(passwordArray.filter(item => item.id !== id))
     }
