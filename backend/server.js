@@ -8,25 +8,33 @@ const fs = require('fs');
 
 dotenv.config();
 
-// MongoDB Client
-const url = process.env.MONGO_URI;
-const client = new MongoClient(url);
-client.connect();
-
-const dbName = process.env.DB_NAME;
 const app = express();
-
-// Use Render's port or fallback to 3000 for local dev
 const port = process.env.PORT || 3000;
 
-// Middleware
 app.use(bodyparser.json());
 app.use(cors());
 
-// -------------------- API ROUTES (must come first) --------------------
+// -------------------- MongoDB Connection --------------------
+const url = process.env.MONGO_URI;
+const dbName = process.env.DB_NAME;
+const client = new MongoClient(url);
+
+let db;
+
+async function connectDB() {
+  try {
+    await client.connect();
+    db = client.db(dbName);
+    console.log('✅ Connected to MongoDB');
+  } catch (err) {
+    console.error('❌ MongoDB connection error:', err);
+    process.exit(1);
+  }
+}
+
+// -------------------- API ROUTES --------------------
 app.get('/api/passwords', async (req, res) => {
   try {
-    const db = client.db(dbName);
     const collection = db.collection('passwords');
     const findResult = await collection.find({}).toArray();
     res.json(findResult);
@@ -38,10 +46,9 @@ app.get('/api/passwords', async (req, res) => {
 app.post('/api/passwords', async (req, res) => {
   try {
     const password = req.body;
-    const db = client.db(dbName);
     const collection = db.collection('passwords');
-    const findResult = await collection.insertOne(password);
-    res.send({ success: true, result: findResult });
+    const result = await collection.insertOne(password);
+    res.json({ success: true, result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -49,31 +56,23 @@ app.post('/api/passwords', async (req, res) => {
 
 app.delete('/api/passwords', async (req, res) => {
   try {
-    const password = req.body;
-    const db = client.db(dbName);
+    const filter = req.body; // expects { id: "..." } or { _id: ... }
     const collection = db.collection('passwords');
-    const findResult = await collection.deleteOne(password);
-    res.send({ success: true, result: findResult });
+    const result = await collection.deleteOne(filter);
+    res.json({ success: true, result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// -------------------- SERVE REACT FRONTEND (if built) --------------------
-// Assuming the build folder is at the project root (one level up from 'backend')
-const buildPath = path.join(__dirname, '..', 'build');
-
-if (fs.existsSync(buildPath)) {
-  // Serve static files (JS, CSS, images) from the build folder
-  app.use(express.static(buildPath));
-
-  // ✅ Catch‑all: any request that isn't an API call → serve index.html
-  // This middleware runs after all other routes, so it won't interfere with API calls.
+// -------------------- Serve React Frontend --------------------
+const distPath = path.join(__dirname, '..', 'dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
   app.use((req, res) => {
-    res.sendFile(path.join(buildPath, 'index.html'));
+    res.sendFile(path.join(distPath, 'index.html'));
   });
 } else {
-  // Fallback if build folder is missing
   app.get('/', (req, res) => {
     res.send('Frontend not built yet. Run "npm run build" from the project root.');
   });
@@ -82,7 +81,9 @@ if (fs.existsSync(buildPath)) {
   });
 }
 
-// -------------------- START SERVER --------------------
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// -------------------- Start Server AFTER DB connection --------------------
+connectDB().then(() => {
+  app.listen(port, () => {
+    console.log(`🚀 Server running on port ${port}`);
+  });
 });

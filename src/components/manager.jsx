@@ -13,12 +13,20 @@ const manager = () => {
     const [form, setform] = useState({ site: "", username: "", password: "" })
     const [passwordArray, setPasswordArray] = useState([])
 
-    const getPasswords = async () => {
-        let req = await fetch("/api/passwords")
-        let passwords = await req.json()
-        setPasswordArray(passwords)
-        console.log(passwords)
+   const getPasswords = async () => {
+  try {
+    const res = await fetch("/api/passwords");
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Server returned error:", text); // <-- shows HTML or error message
+      return;
     }
+    const passwords = await res.json();
+    setPasswordArray(passwords);
+  } catch (err) {
+    console.error("Failed to parse JSON:", err);
+  }
+};
     useEffect(() => {
         getPasswords()
     }, [])
