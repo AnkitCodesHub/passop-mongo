@@ -5,11 +5,43 @@ const bodyparser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+
+// -------------------- Encryption Helpers --------------------
+const ALGORITHM = 'aes-256-cbc';
+
+function getEncryptionKey() {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key || Buffer.from(key, 'hex').length !== 32) {
+    console.error('❌ ENCRYPTION_KEY must be a 64-char hex string (32 bytes)');
+    process.exit(1);
+  }
+  return Buffer.from(key, 'hex');
+}
+
+function encrypt(text) {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(ALGORITHM, getEncryptionKey(), iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  // Store IV alongside ciphertext so we can decrypt later
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+function decrypt(encryptedText) {
+  const [ivHex, ciphertext] = encryptedText.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
+  let decrypted = decipher.update(ciphertext, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+
 app.use(bodyparser.json());
 app.use(cors());
 
@@ -36,7 +68,12 @@ app.get('/api/passwords', async (req, res) => {
   try {
     const collection = db.collection('passwords');
     const findResult = await collection.find({}).toArray();
-    res.json(findResult);
+    // Decrypt each password before sending to client
+    const decrypted = findResult.map(entry => ({
+      ...entry,
+      password: decrypt(entry.password),
+    }));
+    res.json(decrypted);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -44,9 +81,11 @@ app.get('/api/passwords', async (req, res) => {
 
 app.post('/api/passwords', async (req, res) => {
   try {
-    const password = req.body;
+    const entry = req.body;
+    // Encrypt the password before storing
+    entry.password = encrypt(entry.password);
     const collection = db.collection('passwords');
-    const result = await collection.insertOne(password);
+    const result = await collection.insertOne(entry);
     res.json({ success: true, result });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -85,12 +124,4 @@ connectDB().then(() => {
   app.listen(port, () => {
     console.log(`🚀 Server running on port ${port}`);
   });
-});
-const decrypted = findResult.map(entry => {
-  try {
-    return { ...entry, password: decrypt(entry.password) };
-  } catch {
-    // Legacy plaintext entry — return as-is
-    return entry;
-  }
 });
