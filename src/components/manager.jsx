@@ -1,4 +1,5 @@
 import React from 'react'
+import PasswordGenerator from './PasswordGenerator';
 import { useRef, useState, useEffect } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +13,11 @@ const manager = () => {
     const PasswordRef = useRef()
     const [form, setform] = useState({ site: "", username: "", password: "" })
     const [passwordArray, setPasswordArray] = useState([])
+    const [showGenerator, setShowGenerator] = useState(false)  
+    const useGeneratedPassword = (password) => {
+    setform({ ...form, password })
+    setShowGenerator(false)
+}
 
    const getPasswords = async () => {
   try {
